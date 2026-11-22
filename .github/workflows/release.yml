@@ -97,6 +97,16 @@ jobs:
             test/episode_selector_test.dart test/live_channel_search_test.dart \
             test/player_controls_test.dart
 
+      # 本地 gradle-wrapper.properties 走腾讯云镜像（国内快）；GitHub 的美国
+      # runner 访问它不稳定，CI 里临时换回官方源，仓库文件保持不动。
+      - name: CI 切换 Gradle 发行源为官方
+        run: |
+          set -euo pipefail
+          FILE=android/gradle/wrapper/gradle-wrapper.properties
+          GRADLE_ZIP=$(grep '^distributionUrl=' "$FILE" | sed 's|.*/||' | tr -d '\r')
+          awk -v zip="$GRADLE_ZIP" '{ if ($0 ~ /^distributionUrl=/) print "distributionUrl=https\\://services.gradle.org/distributions/" zip; else print }' "$FILE" > "$FILE.tmp" && mv "$FILE.tmp" "$FILE"
+          grep '^distributionUrl=' "$FILE"
+
       - name: 构建 universal APK
         run: flutter build apk --release
 
