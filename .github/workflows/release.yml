@@ -3,7 +3,9 @@
 #   - 或在 Actions 页手动触发（可选填 tag，留空取 pubspec.yaml 当前版本）。
 #
 # 发版约定（与 lib/core/app_updater.dart 头注释一致）：
-#   - tag 必须等于 `v` + pubspec 版本：应用内更新按 tag 与本机 versionName
+#   - tag 用干净的语义版本（v1.0.0 这种），不拼 commit 前缀/提交数；
+#     pubspec 的 +build 只是 Android versionCode，不进 tag。tag 的 base
+#     版本必须与 pubspec version 一致：应用内更新按 tag 与本机 versionName
 #     比较，二者不一致会让老版本永远提示"有更新"，流水线直接报错拦截；
 #   - Release 挂两个 APK：文件名含 arm64-v8a 的会被更新弹窗优先选中，
 #     universal 作为全架构兜底；
@@ -39,20 +41,28 @@ jobs:
         run: |
           set -euo pipefail
           PUBSPEC_VERSION=$(grep -E '^version:' pubspec.yaml | head -1 | sed 's/^version:[[:space:]]*//')
+          # 干净版本号：去掉 +build 后缀（1.0.0+1 → 1.0.0），tag 保持 v1.0.0 形式
+          VERSION="${PUBSPEC_VERSION%%+*}"
           if [ -n "$TAG_INPUT" ]; then
             TAG="$TAG_INPUT"
           elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
             TAG="$GITHUB_REF_NAME"
           else
-            TAG="v$PUBSPEC_VERSION"
+            TAG="v$VERSION"
           fi
-          if [ "$TAG" != "v$PUBSPEC_VERSION" ]; then
-            echo "::error::tag（$TAG）与 pubspec.yaml 版本（v$PUBSPEC_VERSION）不一致。请先同步 pubspec.yaml 的 version 再打 tag。"
-            exit 1
-          fi
+          case "$TAG" in
+            "v$VERSION")
+              ;; # 干净 tag（推荐）：v1.0.0
+            "v$PUBSPEC_VERSION")
+              ;; # 允许带与 pubspec 一致的 build 后缀：v1.0.0+1
+            *)
+              echo "::error::tag（$TAG）不合法，必须形如 v$VERSION（与 pubspec.yaml 的 version $PUBSPEC_VERSION 去掉 +build 后一致，不拼 commit 前缀/提交数）。"
+              exit 1
+              ;;
+          esac
           {
             echo "tag=$TAG"
-            echo "version=$PUBSPEC_VERSION"
+            echo "version=$VERSION"
           } >> "$GITHUB_OUTPUT"
 
       - uses: actions/setup-java@v4
