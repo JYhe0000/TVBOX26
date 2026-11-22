@@ -1,0 +1,142 @@
+# TVBOX26 发行流水线：
+#   - 推送 v* tag（如 v1.0.0）→ 自动构建 APK 并创建 GitHub Release；
+#   - 或在 Actions 页手动触发（可选填 tag，留空取 pubspec.yaml 当前版本）。
+#
+# 发版约定（与 lib/core/app_updater.dart 头注释一致）：
+#   - tag 必须等于 `v` + pubspec 版本：应用内更新按 tag 与本机 versionName
+#     比较，二者不一致会让老版本永远提示"有更新"，流水线直接报错拦截；
+#   - Release 挂两个 APK：文件名含 arm64-v8a 的会被更新弹窗优先选中，
+#     universal 作为全架构兜底；
+#   - Release 标题与正文带北京时间（构建时间）。
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: '要发行的 tag（如 v1.0.0，留空 = 取 pubspec.yaml 当前版本）'
+        required: false
+        default: ''
+        type: string
+
+permissions:
+  contents: write # gh release create 用 GITHUB_TOKEN 发行
+
+jobs:
+  release:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: 确定版本并校验 tag 与 pubspec 一致
+        id: ver
+        env:
+          TAG_INPUT: ${{ inputs.tag }}
+        run: |
+          set -euo pipefail
+          PUBSPEC_VERSION=$(grep -E '^version:' pubspec.yaml | head -1 | sed 's/^version:[[:space:]]*//')
+          if [ -n "$TAG_INPUT" ]; then
+            TAG="$TAG_INPUT"
+          elif [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            TAG="$GITHUB_REF_NAME"
+          else
+            TAG="v$PUBSPEC_VERSION"
+          fi
+          if [ "$TAG" != "v$PUBSPEC_VERSION" ]; then
+            echo "::error::tag（$TAG）与 pubspec.yaml 版本（v$PUBSPEC_VERSION）不一致。请先同步 pubspec.yaml 的 version 再打 tag。"
+            exit 1
+          fi
+          {
+            echo "tag=$TAG"
+            echo "version=$PUBSPEC_VERSION"
+          } >> "$GITHUB_OUTPUT"
+
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+
+      # 与宿主工具链一致（AGENTS.md §10：Flutter 3.47.9 / Dart 3.13.7）
+      - uses: subosito/flutter-action@v2
+        with:
+          flutter-version: 3.47.9
+          cache: true
+
+      - name: 拉取依赖
+        run: flutter pub get
+
+      - name: flutter analyze（0 issues 才可发行）
+        run: flutter analyze
+
+      # AGENTS.md §10：必绿清单 83 项 + 证据清单 53 项，全绿才可发行
+      - name: flutter test（136 项验收门禁）
+        run: |
+          flutter test \
+            test/parsers_test.dart test/remote_search_test.dart test/ui_smoke_test.dart \
+            test/shelf_row_test.dart test/home_direction_test.dart test/nav_topbar_test.dart \
+            test/settings_back_test.dart test/wallpaper_upload_server_test.dart \
+            test/shell_material_test.dart test/dialog_buttons_test.dart \
+            test/page_buttons_test.dart test/history_tile_test.dart \
+            test/settings_buttons_test.dart test/focus_fix_test.dart \
+            test/skin_switch_test.dart test/theme_switch_repro_test.dart \
+            test/mine_page_focus_test.dart test/skin_surface_blur_test.dart \
+            test/episode_selector_test.dart test/live_channel_search_test.dart \
+            test/player_controls_test.dart
+
+      - name: 构建 universal APK
+        run: flutter build apk --release
+
+      - name: 构建 arm64-v8a APK
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64
+
+      - name: 整理 APK 文件名（带版本号）
+        env:
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          cd build/app/outputs/flutter-apk
+          cp app-release.apk "tvbox26-$VERSION-universal.apk"
+          cp app-arm64-v8a-release.apk "tvbox26-$VERSION-arm64-v8a.apk"
+          ls -lh tvbox26-*
+
+      - name: 生成发行说明（含北京时间）
+        env:
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          BUILD_TIME=$(TZ=Asia/Shanghai date '+%Y-%m-%d %H:%M')
+          echo "BUILD_TIME=$BUILD_TIME" >> "$GITHUB_ENV"
+          {
+            echo "构建时间：$BUILD_TIME（北京时间）"
+            echo
+            echo "版本：$TAG"
+            echo
+            echo "## 安装包"
+            echo
+            echo "- tvbox26-$VERSION-arm64-v8a.apk — 主流电视盒（arm64-v8a）"
+            echo "- tvbox26-$VERSION-universal.apk — 全架构通用"
+            echo
+            echo "## 本次变更"
+            echo
+            echo "https://github.com/${{ github.repository }}/commits/$TAG"
+          } > release_notes.md
+          cat release_notes.md
+
+      - name: 创建 GitHub Release 并上传 APK
+        env:
+          GH_TOKEN: ${{ github.token }}
+          TAG: ${{ steps.ver.outputs.tag }}
+          VERSION: ${{ steps.ver.outputs.version }}
+        run: |
+          set -euo pipefail
+          gh release create "$TAG" \
+            --target "$GITHUB_SHA" \
+            --title "TVBOX26 $TAG（$BUILD_TIME）" \
+            --notes-file release_notes.md \
+            "build/app/outputs/flutter-apk/tvbox26-$VERSION-universal.apk" \
+            "build/app/outputs/flutter-apk/tvbox26-$VERSION-arm64-v8a.apk"
