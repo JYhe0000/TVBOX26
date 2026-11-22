@@ -2198,7 +2198,6 @@ class _Row extends StatelessWidget {
     required this.title,
     required this.child,
     this.subtitle,
-    this.tint,
   });
 
   final IconData icon;
@@ -2208,14 +2207,11 @@ class _Row extends StatelessWidget {
   /// 右侧控件（开关、输入框、按钮组、说明文字）。
   final Widget child;
 
-  /// 图标与标题的强调色，默认 [TvSkin.accent]。
-  final Color? tint;
-
   @override
   Widget build(BuildContext context) {
     final skin = TvSkin.of(context);
     final text = AppText.of(context);
-    final accent = tint ?? skin.accent;
+    final accent = skin.accent;
     return Padding(
       padding: EdgeInsets.symmetric(vertical: skin.spaceXs),
       child: ConstrainedBox(
