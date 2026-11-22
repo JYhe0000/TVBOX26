@@ -1,0 +1,5 @@
+-keep class com.whl.quickjs.** { *; }
+-keep class com.github.catvod.crawler.** { *; }
+-keep class okhttp3.** { *; }
+-keep class okio.** { *; }
+-keep class com.google.gson.** { *; }
