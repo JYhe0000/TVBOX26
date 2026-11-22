@@ -37,6 +37,15 @@ String formatCount(int value) {
   return value.toString();
 }
 
+/// 安装包 / 下载体量展示（设置页「关于」的检查更新用）。
+String formatBytes(int bytes) {
+  if (bytes <= 0) return '0 MB';
+  if (bytes >= 1024 * 1024 * 1024) {
+    return '${(bytes / (1024 * 1024 * 1024)).toStringAsFixed(2)} GB';
+  }
+  return '${(bytes / (1024 * 1024)).toStringAsFixed(1)} MB';
+}
+
 String safeText(String input, {String fallback = '—'}) {
   final text = input.trim();
   return text.isEmpty ? fallback : text;

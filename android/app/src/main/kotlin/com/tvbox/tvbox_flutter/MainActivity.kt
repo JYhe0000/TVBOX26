@@ -187,6 +187,42 @@ class MainActivity : FlutterActivity() {
                     else -> result.notImplemented()
                 }
             }
+        // ── 应用内更新：安装已下载的 APK（lib/core/android_updater.dart）──────
+        MethodChannel(flutterEngine.dartExecutor.binaryMessenger, "tvbox/updater")
+            .setMethodCallHandler { call, result ->
+                when (call.method) {
+                    "installApk" -> {
+                        val path = call.argument<String>("path") ?: ""
+                        try {
+                            val file = java.io.File(path)
+                            if (!file.exists()) {
+                                result.success(false)
+                            } else if (Build.VERSION.SDK_INT >= 26 &&
+                                !packageManager.canRequestPackageInstalls()) {
+                                // 先引导授权「安装未知应用」；用户允许后重新发起安装即可
+                                startActivity(
+                                    Intent(android.provider.Settings.ACTION_MANAGE_UNKNOWN_APP_SOURCES)
+                                        .setData(Uri.parse("package:$packageName"))
+                                )
+                                result.success(false)
+                            } else {
+                                val uri = androidx.core.content.FileProvider.getUriForFile(
+                                    this, "$packageName.fileprovider", file)
+                                val intent = Intent(Intent.ACTION_VIEW).apply {
+                                    setDataAndType(uri, "application/vnd.android.package-archive")
+                                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+                                }
+                                startActivity(intent)
+                                result.success(true)
+                            }
+                        } catch (_: Exception) {
+                            result.success(false)
+                        }
+                    }
+                    else -> result.notImplemented()
+                }
+            }
         // 长驻后台播放：服务经此 messenger 把通知动作回传 Dart（见 ForegroundMediaService）。
         ForegroundMediaService.bindMessenger(flutterEngine.dartExecutor.binaryMessenger)
     }

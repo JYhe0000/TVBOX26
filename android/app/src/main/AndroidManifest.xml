@@ -8,6 +8,9 @@
     <!-- API 33+ 运行时通知权限；电视盒子多为 API<33，安装即授予，无需 Dart 侧动态申请。
          若未来出现 API 33+ 设备，需在 Dart 侧请求此权限后再发通知（否则通知不显示但不崩溃）。 -->
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <!-- 应用内更新：下载 APK 后经 FileProvider 拉起系统安装器；
+         Android 8+ 缺此权限则安装 Intent 与「未知来源」授权页都不会出现。 -->
+    <uses-permission android:name="android.permission.REQUEST_INSTALL_PACKAGES" />
 
     <!-- Android TV: installable on TVs without a touch screen. -->
     <uses-feature
@@ -55,6 +58,17 @@
             android:name=".ForegroundMediaService"
             android:exported="false"
             android:foregroundServiceType="mediaPlayback" />
+        <!-- 应用内更新：经 FileProvider 向系统安装器共享 cache/updates/ 下的 APK
+             （exported=false，仅授权方可见；路径见 res/xml/file_paths.xml）。 -->
+        <provider
+            android:name="androidx.core.content.FileProvider"
+            android:authorities="${applicationId}.fileprovider"
+            android:exported="false"
+            android:grantUriPermissions="true">
+            <meta-data
+                android:name="android.support.FILE_PROVIDER_PATHS"
+                android:resource="@xml/file_paths" />
+        </provider>
         <!-- Don't delete the meta-data below.
              This is used by the Flutter tool to generate GeneratedPluginRegistrant.java -->
         <meta-data

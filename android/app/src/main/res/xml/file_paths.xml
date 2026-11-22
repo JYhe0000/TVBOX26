@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 应用内更新：APK 下载到 cache/updates/（path_provider 的临时目录，
+     见 lib/core/app_updater.dart 的 downloadApk），经 FileProvider 以
+     content:// URI 共享给系统安装器。 -->
+<paths xmlns:android="http://schemas.android.com/apk/res/android">
+    <cache-path
+        name="updates"
+        path="updates/" />
+</paths>

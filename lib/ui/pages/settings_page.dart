@@ -1,14 +1,20 @@
 import 'dart:io';
 
+import 'package:dio/dio.dart'
+    show CancelToken, DioException, DioExceptionType;
 import 'package:flutter/foundation.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/rendering.dart' show ScrollCacheExtent;
 import 'package:flutter/services.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:path_provider/path_provider.dart';
 import 'package:provider/provider.dart';
 
 import '../../core/app_controller.dart';
 import '../../core/android_playback.dart';
+import '../../core/android_updater.dart';
+import '../../core/app_updater.dart';
+import '../../core/build_info.dart';
 import '../widgets/push_play_dialog.dart';
 import '../widgets/cloud_browser.dart';
 import '../widgets/native_pan_browser.dart';
@@ -85,6 +91,27 @@ class _SettingsPageState extends State<SettingsPage> {
   /// 「导入配置源」是否正在进行（防止遥控器连发 OK 起两个扫码服务）。
   bool _importing = false;
 
+  /// 本机包信息（关于区展示版本号 / 构建号）；进页异步加载。
+  PackageInfo? _packageInfo;
+
+  /// 检查更新是否进行中（防止遥控器连发 OK 重复发起）。
+  bool _checkingUpdate = false;
+
+  /// 更新检查 / 下载服务（页面级实例，随页销毁）。
+  final AppUpdater _updater = AppUpdater();
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPackageInfo();
+  }
+
+  Future<void> _loadPackageInfo() async {
+    final info = await PackageInfo.fromPlatform();
+    if (!mounted) return;
+    setState(() => _packageInfo = info);
+  }
+
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
@@ -97,6 +124,7 @@ class _SettingsPageState extends State<SettingsPage> {
 
   @override
   void dispose() {
+    _updater.dispose();
     _config.dispose();
     _vodInput.dispose();
     _live.dispose();
@@ -1618,13 +1646,45 @@ class _SettingsPageState extends State<SettingsPage> {
 
   List<Widget> _aboutSection() {
     final skin = TvSkin.of(context);
+    final info = _packageInfo;
     return [
-      _PanelHeader(title: '关于', subtitle: '版本与许可信息'),
-      const _InfoRow(
+      _PanelHeader(title: '关于', subtitle: '版本 · 仓库 · 检查更新'),
+      _Row(
         icon: Icons.live_tv_rounded,
-        title: 'TVBOX 26 Flutter',
-        subtitle: '版本 1.0.0 · 参考 TVBox 开源项目重制',
-        tint: null,
+        title: '当前版本',
+        subtitle: 'TVBOX 26 Flutter · 参考 TVBox 开源项目重制',
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            info == null ? '…' : 'v${info.version} (${info.buildNumber})',
+            style: AppText.of(context).bodyStrong,
+          ),
+        ),
+      ),
+      _Row(
+        icon: Icons.event_note_rounded,
+        title: '编译日期',
+        child: Align(
+          alignment: Alignment.centerRight,
+          child: Text(
+            appBuildDateDisplay,
+            style: AppText.of(context).bodyStrong,
+          ),
+        ),
+      ),
+      _ActionRow(
+        icon: Icons.code_rounded,
+        title: '源码仓库',
+        subtitle: kRepoUrl,
+        onTap: _showRepoSheet,
+      ),
+      _ActionRow(
+        icon: Icons.system_update_rounded,
+        title: '检查更新',
+        subtitle: _checkingUpdate
+            ? '正在检查 GitHub 最新 Release…'
+            : '对比 GitHub 最新发布版本',
+        onTap: _checkingUpdate ? () {} : _checkForUpdate,
       ),
       _ActionRow(
         icon: Icons.article_outlined,
@@ -1640,6 +1700,129 @@ class _SettingsPageState extends State<SettingsPage> {
             '请确保使用的接口与内容符合当地法律法规。',
       ),
     ];
+  }
+
+  /// 源码仓库：二维码给手机扫（电视盒上多数没有浏览器），复制链接兜底。
+  Future<void> _showRepoSheet() async {
+    await showTvSheet<void>(
+      context,
+      title: '源码仓库',
+      subtitle: 'GitHub · 手机扫码访问',
+      width: 560,
+      builder: (sheetContext) {
+        final skin = TvSkin.of(sheetContext);
+        final text = AppText.of(sheetContext);
+        return Padding(
+          padding: EdgeInsets.all(skin.spaceLg),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [
+              Center(
+                child: Container(
+                  padding: EdgeInsets.all(skin.spaceSm),
+                  decoration: BoxDecoration(
+                    // QR 必须黑模块白底才可被手机扫出（同海报角标：压图黑白豁免）。
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(skin.radiusMd),
+                  ),
+                  child: QrImageView(
+                    data: kRepoUrl,
+                    size: 200,
+                    backgroundColor: Colors.white,
+                    eyeStyle: const QrEyeStyle(
+                      eyeShape: QrEyeShape.square,
+                      color: Colors.black,
+                    ),
+                    dataModuleStyle: const QrDataModuleStyle(
+                      dataModuleShape: QrDataModuleShape.square,
+                      color: Colors.black,
+                    ),
+                  ),
+                ),
+              ),
+              SizedBox(height: skin.spaceMd),
+              Center(
+                child: Text(
+                  kRepoUrl,
+                  style: text.body.copyWith(color: skin.textSecondary),
+                ),
+              ),
+              SizedBox(height: skin.spaceLg),
+              SizedBox(
+                height: skin.spaceLg + skin.spaceMd,
+                child: OutlinedButton(
+                  autofocus: true,
+                  onPressed: () {
+                    Clipboard.setData(const ClipboardData(text: kRepoUrl));
+                    showAppSnack(sheetContext, '链接已复制');
+                  },
+                  child: const Text('复制链接'),
+                ),
+              ),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  /// 检查更新：拉 GitHub 最新 Release → 比版本 → 弹「发现新版本」面板。
+  Future<void> _checkForUpdate() async {
+    if (_checkingUpdate) return;
+    setState(() => _checkingUpdate = true);
+    AppUpdateInfo info;
+    try {
+      info = await _updater.fetchLatest();
+    } on UpdateCheckException catch (e) {
+      if (!mounted) return;
+      setState(() => _checkingUpdate = false);
+      final message = switch (e.type) {
+        AppUpdateError.noRelease => '仓库还没有发布任何版本',
+        AppUpdateError.noApk => '最新 Release 里没有 APK 安装包',
+        AppUpdateError.network => '无法连接 GitHub，请检查网络后重试',
+      };
+      showAppSnack(context, message, error: true);
+      return;
+    } catch (_) {
+      if (!mounted) return;
+      setState(() => _checkingUpdate = false);
+      showAppSnack(context, '无法连接 GitHub，请检查网络后重试', error: true);
+      return;
+    }
+    if (!mounted) return;
+    setState(() => _checkingUpdate = false);
+    final current = _packageInfo?.version;
+    if (current != null &&
+        current.isNotEmpty &&
+        !isNewerVersion(current, info.versionName)) {
+      showAppSnack(context, '当前已是最新版本（v$current）');
+      return;
+    }
+    await _showUpdateSheet(info);
+  }
+
+  /// 「发现新版本」面板：确认后下载 APK，pop 出落盘路径交原生安装。
+  Future<void> _showUpdateSheet(AppUpdateInfo info) async {
+    final installed = await showTvSheet<String>(
+      context,
+      title: '发现新版本 ${info.tagName}',
+      subtitle: _packageInfo == null
+          ? '安装包 ${formatBytes(info.assetSize)}'
+          : '当前 v${_packageInfo!.version} · 安装包 ${formatBytes(info.assetSize)}',
+      width: 560,
+      builder: (sheetContext) => _UpdateSheetBody(info: info, updater: _updater),
+    );
+    if (!mounted || installed == null) return;
+    final ok = await AndroidUpdater.installApk(installed);
+    if (!mounted) return;
+    showAppSnack(
+      context,
+      ok
+          ? '已启动安装，请在系统安装器中确认'
+          : '未获「安装未知应用」授权，已打开系统授权页，允许后重新发起即可',
+      error: !ok,
+    );
   }
 
   /// 许可信息。用皮肤化侧栏承载，不走 `showLicensePage`：全屏 Material
@@ -2077,38 +2260,6 @@ class _Row extends StatelessWidget {
             Expanded(child: child),
           ],
         ),
-      ),
-    );
-  }
-}
-
-/// 无右侧控件的只读行。
-class _InfoRow extends StatelessWidget {
-  const _InfoRow({
-    required this.icon,
-    required this.title,
-    required this.subtitle,
-    this.tint,
-  });
-
-  final IconData icon;
-  final String title;
-  final String subtitle;
-  final Color? tint;
-
-  @override
-  Widget build(BuildContext context) {
-    final skin = TvSkin.of(context);
-    final text = AppText.of(context);
-    final accent = tint ?? skin.accent;
-    return _Row(
-      icon: icon,
-      title: title,
-      subtitle: subtitle,
-      tint: accent,
-      child: Align(
-        alignment: Alignment.centerRight,
-        child: Text('已启用', style: text.label.copyWith(color: skin.textMuted)),
       ),
     );
   }
@@ -2828,6 +2979,181 @@ class _Banner extends StatelessWidget {
                 color: skin.textSecondary,
               ),
             ),
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// 「发现新版本」面板内容：更新说明 → 下载（进度）→ pop 出 APK 路径交
+/// 外层调用原生安装。面板关闭（Back）时经 CancelToken 取消进行中的下载，
+/// 不会后台静默拉包。
+class _UpdateSheetBody extends StatefulWidget {
+  const _UpdateSheetBody({required this.info, required this.updater});
+
+  final AppUpdateInfo info;
+  final AppUpdater updater;
+
+  @override
+  State<_UpdateSheetBody> createState() => _UpdateSheetBodyState();
+}
+
+class _UpdateSheetBodyState extends State<_UpdateSheetBody> {
+  CancelToken? _cancelToken;
+  int _received = 0;
+  int _total = 0;
+  bool _downloading = false;
+  String? _error;
+
+  @override
+  void dispose() {
+    // 面板关闭时若仍在下载：取消请求，外层拿不到路径就不会触发安装。
+    _cancelToken?.cancel('sheet closed');
+    super.dispose();
+  }
+
+  Future<void> _startDownload() async {
+    final token = CancelToken();
+    _cancelToken = token;
+    setState(() {
+      _downloading = true;
+      _error = null;
+      _received = 0;
+      _total = 0;
+    });
+    try {
+      final file = await widget.updater.downloadApk(
+        widget.info,
+        onProgress: (received, total) {
+          if (!mounted) return;
+          setState(() {
+            _received = received;
+            _total = total;
+          });
+        },
+        cancelToken: token,
+      );
+      if (!mounted) return;
+      Navigator.of(context).pop(file.path);
+    } on DioException catch (e) {
+      if (!mounted) return;
+      // 用户主动取消（type==cancel）：静默回到按钮态；其余异常给可操作文案。
+      setState(() {
+        _downloading = false;
+        if (e.type != DioExceptionType.cancel) _error = '下载中断，请重试或检查网络';
+      });
+    } catch (_) {
+      if (!mounted) return;
+      setState(() {
+        _downloading = false;
+        _error = '下载中断，请重试或检查网络';
+      });
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    final skin = TvSkin.of(context);
+    final text = AppText.of(context);
+    final info = widget.info;
+    if (_downloading) {
+      final progress = _total > 0 ? _received / _total : null;
+      return Padding(
+        padding: EdgeInsets.all(skin.spaceLg),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Text(
+              _total > 0
+                  ? '${(progress! * 100).round()}% · '
+                        '${formatBytes(_received)} / ${formatBytes(_total)}'
+                  : '已下载 ${formatBytes(_received)}',
+              style: text.body.copyWith(color: skin.textSecondary),
+            ),
+            SizedBox(height: skin.spaceMd),
+            ClipRRect(
+              borderRadius: BorderRadius.circular(skin.radiusSm),
+              child: LinearProgressIndicator(
+                value: progress,
+                minHeight: 6,
+                backgroundColor: skin.surfaceSubtle,
+                color: skin.accent,
+              ),
+            ),
+            SizedBox(height: skin.spaceLg),
+            SizedBox(
+              height: skin.spaceLg + skin.spaceMd,
+              child: OutlinedButton(
+                autofocus: true,
+                onPressed: () => _cancelToken?.cancel('user cancel'),
+                child: const Text('取消下载'),
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+    return Padding(
+      padding: EdgeInsets.all(skin.spaceLg),
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Expanded(
+            child: ListView(
+              padding: EdgeInsets.zero,
+              scrollCacheExtent: const ScrollCacheExtent.pixels(
+                kTvListCacheExtent,
+              ),
+              addAutomaticKeepAlives: false,
+              children: [
+                Text(
+                  info.releaseNotes.isEmpty ? '本次更新没有说明文字。' : info.releaseNotes,
+                  style: text.body.copyWith(
+                    height: 1.6,
+                    color: skin.textSecondary,
+                  ),
+                ),
+              ],
+            ),
+          ),
+          if (_error != null) ...[
+            SizedBox(height: skin.spaceSm),
+            Text(_error!, style: text.label.copyWith(color: skin.danger)),
+          ],
+          SizedBox(height: skin.spaceMd),
+          Text(
+            '安装包 ${info.assetName} · ${formatBytes(info.assetSize)}',
+            style: text.meta.copyWith(color: skin.textMuted),
+            maxLines: 1,
+            overflow: TextOverflow.ellipsis,
+          ),
+          SizedBox(height: skin.spaceLg),
+          Row(
+            children: [
+              Expanded(
+                child: SizedBox(
+                  height: skin.spaceLg + skin.spaceMd,
+                  child: OutlinedButton(
+                    autofocus: true,
+                    onPressed: () => Navigator.of(context).pop(),
+                    child: const Text('暂不更新'),
+                  ),
+                ),
+              ),
+              SizedBox(width: skin.spaceSm),
+              Expanded(
+                child: SizedBox(
+                  height: skin.spaceLg + skin.spaceMd,
+                  child: FilledButton(
+                    onPressed: _startDownload,
+                    child: const Text('立即更新'),
+                  ),
+                ),
+              ),
+            ],
           ),
         ],
       ),

@@ -45,6 +45,7 @@ dependencies:
   flutter_skill: ^0.9.37
   qr_flutter: ^4.1.0
   path_provider: ^2.1.5
+  package_info_plus: ^10.2.2
 
 dev_dependencies:
   flutter_test:
