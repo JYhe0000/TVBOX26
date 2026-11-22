@@ -9,11 +9,8 @@ android {
     compileSdk = flutter.compileSdkVersion
     ndkVersion = flutter.ndkVersion
 
-    val quickJs = rootProject.file("../../主软件参考Box/quickjs/src/main")
-    sourceSets.getByName("main") {
-        java.srcDir(quickJs.resolve("java"))
-        jniLibs.srcDir(quickJs.resolve("jniLibs"))
-    }
+    // QuickJS（com.whl.quickjs + libquickjs-android-wrapper.so）已直接放入
+    // src/main/java 与 src/main/jniLibs（源自 reference/主软件参考Box/quickjs）。
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
