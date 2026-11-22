@@ -164,8 +164,8 @@ class ConfigUrlServer {
        padding:max(18px,env(safe-area-inset-top)) 16px calc(96px + env(safe-area-inset-bottom))}
   .wrap{max-width:520px;margin:0 auto}
   header{display:flex;align-items:center;gap:10px;margin:6px 0 18px}
-  .logo{width:34px;height:34px;border-radius:11px;background:linear-gradient(135deg,#ff5a52,#c0252b);
-        display:flex;align-items:center;justify-content:center;font-weight:800;font-size:15px}
+  .logo{width:40px;height:40px;border-radius:12px;background:#e7401b;
+        display:flex;align-items:center;justify-content:center}
   .title{font-size:17px;font-weight:800;letter-spacing:.3px}
   .sub{font-size:12px;color:#7d869b;margin-top:2px}
   .card{background:#141826;border:1px solid rgba(255,255,255,.07);border-radius:18px;padding:16px}
@@ -192,7 +192,7 @@ class ConfigUrlServer {
 <body>
 <div class="wrap">
   <header>
-    <div class="logo">TV</div>
+    <div class="logo"><svg width="30" height="30" viewBox="0 0 48 48" fill="none" aria-hidden="true"><rect x="5" y="9" width="38" height="27" rx="5" stroke="#000000" stroke-width="4"/><path d="M20 17 29.5 22.5 20 28Z" fill="#000000"/><rect x="16" y="41" width="16" height="4" rx="2" fill="#000000"/><text x="30.5" y="43" font-family="Arial,Helvetica,sans-serif" font-size="13" font-weight="800" fill="#ffffff">26</text></svg></div>
     <div>
       <div class="title">TVBOX 填写地址</div>
       <div class="sub">手机粘贴长链接，一键发送到电视</div>

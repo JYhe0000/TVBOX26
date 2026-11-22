@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="tv_background">#05060A</color>
-    <color name="tv_brand">#FF4D4F</color>
+    <!-- 品牌橙红，取自 assets/app_banner.png 背景 -->
+    <color name="tv_brand">#E7401B</color>
 </resources>

@@ -1,4 +1,11 @@
-# TVBOX26 Flutter
+<div align="center">
+  <img width="320" height="180" src="assets/app_banner.png" alt="TVBOX26">
+  <h1>TVBOX26</h1>
+  <p>TVBOX Flutter重制版 </p>
+</div>
+
+
+# TVBOX26 
 
 将 （TVBox Android 版）的核心流程重制为 Flutter 版本，**只面向 Android TV / Google TV / 电视盒子横屏使用**，以遥控器方向键和确认键为主，不提供手机竖屏布局。应用沿用 TVBox 的配置生态，读取 `sites`、`lives`、`parses` 等配置。
 
