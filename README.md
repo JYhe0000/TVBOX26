@@ -133,3 +133,7 @@ flutter test --no-pub test/tv_canvas_test.dart test/theme_accent_test.dart
 
 - 配置协议与交互参考：[TVBox](https://github.com/o0HalfLife0o/TVBoxOSC) 开源项目。
 - 视觉与交互参考：Apple tvOS HIG、Smartisan OS、[izuko-tv 布局参考](../docs/izuko-layout-spec.md)。
+
+## Buy me a  coffee
+
+[点击Buy me a coffee](https://jyhe0000.github.io/coffee/)
