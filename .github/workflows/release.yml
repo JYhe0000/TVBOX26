@@ -139,9 +139,9 @@ jobs:
             echo
             echo "## 安装包"
             echo
-            echo "- tvbox26-$VERSION-arm64-v8a.apk — 主流电视盒（arm64-v8a）"
-            echo "- tvbox26-$VERSION-armeabi-v7a.apk — 32 位老设备（armeabi-v7a）"
-            echo "- tvbox26-$VERSION-universal.apk — 全架构通用"
+            echo "- tvbox26-$VERSION-arm64-v8a.apk"
+            echo "- tvbox26-$VERSION-armeabi-v7a.apk"
+            echo "- tvbox26-$VERSION-universal.apk"
             echo
             echo "## 本次变更"
             echo
