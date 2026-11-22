@@ -6,7 +6,7 @@
 // - 打 tag `v1.2.3`（可选 build 后缀 `v1.2.3+4`，对应 pubspec version）；
 // - Release 正文写更新说明，App 内按纯文本展示；
 // - 挂 APK 资产：文件名含 `arm64-v8a` 的优先被选中，否则取第一个 .apk
-//   （建议 arm64-v8a 与 universal 各挂一份）。
+//   （release.yml 挂 arm64-v8a / armeabi-v7a / universal 三份）。
 library;
 
 import 'dart:io';

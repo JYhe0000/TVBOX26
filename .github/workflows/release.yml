@@ -7,8 +7,8 @@
 #     pubspec 的 +build 只是 Android versionCode，不进 tag。tag 的 base
 #     版本必须与 pubspec version 一致：应用内更新按 tag 与本机 versionName
 #     比较，二者不一致会让老版本永远提示"有更新"，流水线直接报错拦截；
-#   - Release 挂两个 APK：文件名含 arm64-v8a 的会被更新弹窗优先选中，
-#     universal 作为全架构兜底；
+#   - Release 挂三个 APK：arm64-v8a（更新弹窗优先选中）、armeabi-v7a
+#     （32 位老设备）、universal（全架构兜底）；
 #   - Release 标题与正文带北京时间（构建时间）。
 name: Release
 
@@ -110,8 +110,8 @@ jobs:
       - name: 构建 universal APK
         run: flutter build apk --release
 
-      - name: 构建 arm64-v8a APK
-        run: flutter build apk --release --split-per-abi --target-platform android-arm64
+      - name: 构建 arm64-v8a 与 armeabi-v7a APK
+        run: flutter build apk --release --split-per-abi --target-platform android-arm64,android-arm
 
       - name: 整理 APK 文件名（带版本号）
         env:
@@ -121,6 +121,7 @@ jobs:
           cd build/app/outputs/flutter-apk
           cp app-release.apk "tvbox26-$VERSION-universal.apk"
           cp app-arm64-v8a-release.apk "tvbox26-$VERSION-arm64-v8a.apk"
+          cp app-armeabi-v7a-release.apk "tvbox26-$VERSION-armeabi-v7a.apk"
           ls -lh tvbox26-*
 
       - name: 生成发行说明（含北京时间）
@@ -139,6 +140,7 @@ jobs:
             echo "## 安装包"
             echo
             echo "- tvbox26-$VERSION-arm64-v8a.apk — 主流电视盒（arm64-v8a）"
+            echo "- tvbox26-$VERSION-armeabi-v7a.apk — 32 位老设备（armeabi-v7a）"
             echo "- tvbox26-$VERSION-universal.apk — 全架构通用"
             echo
             echo "## 本次变更"
@@ -154,9 +156,12 @@ jobs:
           VERSION: ${{ steps.ver.outputs.version }}
         run: |
           set -euo pipefail
+          # 重发场景：同名 Release 已存在时先删再建（git tag 保留不动）
+          gh release delete "$TAG" --yes || true
           gh release create "$TAG" \
             --target "$GITHUB_SHA" \
             --title "TVBOX26 $TAG（$BUILD_TIME）" \
             --notes-file release_notes.md \
             "build/app/outputs/flutter-apk/tvbox26-$VERSION-universal.apk" \
-            "build/app/outputs/flutter-apk/tvbox26-$VERSION-arm64-v8a.apk"
+            "build/app/outputs/flutter-apk/tvbox26-$VERSION-arm64-v8a.apk" \
+            "build/app/outputs/flutter-apk/tvbox26-$VERSION-armeabi-v7a.apk"
